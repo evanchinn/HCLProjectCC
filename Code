@@ -4,19 +4,27 @@ import csv
 import matplotlib.pylab as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
+from matplotlib import pylab
+from pylab import *
 from sklearn.cluster import KMeans
 from sklearn.mixture import GaussianMixture
+from sklearn.preprocessing import QuantileTransformer
+from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 from scipy import stats
 import scipy.cluster.hierarchy as sch 
 import warnings
 import scipy.cluster.hierarchy as shc
+from sklearn.decomposition import PCA
+
 warnings.filterwarnings('ignore')
 
 
 #load in data
 data = pd.read_csv('/Users/evanchinn/Downloads/CreditCardCustomerData.csv')
 data.head()
+
+
 
 #check info of data
 data.info()
@@ -34,7 +42,8 @@ print(dupKeys)
 #remove duplicates
 data = data.drop_duplicates(subset='Customer Key', keep='first')
 
-data.drop(columns = ['Sl_No', 'Customer Key'], inplace = True)
+
+coldrop = data.drop(columns = ['Sl_No', 'Customer Key'], inplace = True)
 
 #see duplicated rows
 data[data.duplicated()]
@@ -74,28 +83,26 @@ for i in range(1, 10):
 
 plt.figure()
 plt.plot(list(sse.keys()), list(sse.values()), 'bx-')
-plt.xlabel("Number of cluster")
+plt.xlabel("Number of clusters")
 plt.ylabel("SSE")
 plt.show()
 
-kmean = KMeans(n_clusters = 3, init = 'k-means++', random_state = 43)
+kmean = KMeans(n_clusters = 3, init = 'k-means++', random_state = 42)
 kmean.fit(data_scaled)
 y = kmean.predict(data_scaled)
 silhouette_score(data_scaled, y)
 
-#Not negative, correct cluster
+#Not negative, correct cluster (3 of them)
 
 
-sns.pairplot(data)
-
-sc=StandardScaler()# scaling of data
+sc=StandardScaler()#scaling of data
 scaled=sc.fit_transform(data)
 scaled_data=pd.DataFrame(scaled,columns=data.columns)
 
 plt.figure(figsize=(8,6))
 sns.scatterplot(data=data,y='Avg_Credit_Limit',x='Total_Credit_Cards')
 plt.show()
-# the higher the avg_credit_limit, the higher is total_credit_card aquired by customer
+# There is a positive correlation between the higher the avg_credit_limit, the higher is total_credit_card aquired by customer
 
 plt.figure(figsize=(8,6))
 sns.scatterplot(data=data,y='Avg_Credit_Limit',x='Total_visits_online')
@@ -108,13 +115,74 @@ sns.scatterplot(data=data,x='Total_calls_made',y='Total_Credit_Cards')
 
 
 
+#H-Clustering
 plt.figure(figsize=(10,8))
-dend=shc.dendrogram(shc.linkage(scaled_data,method='ward'))
 plt.title('Dendrogram')
-plt.xlabel('Customers')
-plt.ylabel('Euclidean distances')
+dend=shc.dendrogram(shc.linkage(scaled_data,method='ward'))
+plt.axhline(y=10, color="r", linestyle = '--')
+
+cluster = AgglomerativeClustering (n_clusters = 2, affinity = 'euclidean', linkage = 'ward')
+cluster.fit_predict(scaled_data)
+
+#Customer Segmentation
+dfs=data.copy()
+scaler = StandardScaler()
+scaler.fit(dfs)
+scaled_dfs = pd.DataFrame(scaler.transform(dfs),columns= dfs.columns )
+print("All features are now scaled")
+
+print("Dataframe to be used for further modelling:")
+scaled_dfs.head()
+
+pca = PCA(n_components=3)
+pca.fit(scaled_dfs)
+PCA_dfs = pd.DataFrame(pca.transform(scaled_dfs), columns=(["col1","col2", "col3"]))
+PCA_dfs.describe().T
+
+x =PCA_dfs["col1"]
+y =PCA_dfs["col2"]
+z =PCA_dfs["col3"]
+#To plot
+fig = plt.figure(figsize=(10,8))
+ax = fig.add_subplot(111, projection="3d")
+ax.scatter(x,y,z, c="red", marker="o" )
+ax.set_title("A 3D Projection Of Data In The Reduced Dimension")
+plt.show()
+
+#Initiating the Agglomerative Clustering model 
+AC = AgglomerativeClustering(n_clusters=3)
+# fit model and predict clusters
+yhat_AC = AC.fit_predict(PCA_dfs)
+PCA_dfs["Clusters"] = yhat_AC
+#Adding the Clusters feature to the orignal dataframe.
+data["Clusters"]= yhat_AC
+
+#Plotting the clusters
+fig = plt.figure(figsize=(10,8))
+ax = plt.subplot(111, projection='3d', label="bla")
+ax.scatter(x, y, z, s=40, c=PCA_dfs["Clusters"], marker='o', cmap='plasma_r')
+ax.set_title("The Plot Of The Clusters")
+plt.show()
+
+#Plotting countplot of clusters
+pal = ["#120242","#e60c0b", "#ded2a2"]
+pl = sns.countplot(x=data["Clusters"], palette= pal)
+pl.set_title("Distribution Of The Clusters")
+plt.show()
+
+pl = sns.scatterplot(data = data,x=data["Total_Credit_Cards"], y=data["Avg_Credit_Limit"],hue=data["Clusters"], palette= pal)
+pl.set_title("Cluster's Profile Based On Average Credit Limit And Total Credit Cards")
+plt.legend()
+plt.show()
+
+pl = sns.scatterplot(data = data,x=data["Total_visits_online"], y=data["Avg_Credit_Limit"],hue=data["Clusters"], palette= pal)
+pl.set_title("Cluster's Profile Based On Average Credit Limit And Total Credit Cards")
+plt.legend()
 plt.show()
 
 
-
+pl = sns.scatterplot(data = data,x=data["Total_calls_made"], y=data["Avg_Credit_Limit"],hue=data["Clusters"], palette= pal)
+pl.set_title("Cluster's Profile Based On Average Credit Limit And Total Credit Cards")
+plt.legend()
+plt.show()
 
