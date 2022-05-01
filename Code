@@ -186,3 +186,9 @@ pl.set_title("Cluster's Profile Based On Average Credit Limit And Total Credit C
 plt.legend()
 plt.show()
 
+
+
+
+
+
+
